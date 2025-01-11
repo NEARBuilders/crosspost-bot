@@ -234,23 +234,7 @@ export class TwitterService {
     const userId = tweet.userId;
     if (!userId || !tweet.id) return;
 
-    // Get the tweet being replied to
-    const inReplyToId = tweet.inReplyToStatusId;
-    if (!inReplyToId) {
-      logger.error(
-        `Submission tweet ${tweet.id} is not a reply to another tweet`,
-      );
-      return;
-    }
-
     try {
-      // Fetch the original tweet that's being submitted
-      const originalTweet = await this.client.getTweet(inReplyToId);
-      if (!originalTweet) {
-        logger.error(`Could not fetch original tweet ${inReplyToId}`);
-        return;
-      }
-
       // Get submission count from database
       const dailyCount = db.getDailySubmissionCount(userId);
 
@@ -263,37 +247,40 @@ export class TwitterService {
         return;
       }
 
-      // Extract curator handle from submission tweet
-      const submissionMatch = tweet.text?.match(/!submit\s+@(\w+)/i);
+      // Extract curator handle and command from submission tweet
+      const submissionMatch = tweet.text?.match(/(?:!submit\s*@(\w+)|@(\w+)\s*!submit)/i);
       if (!submissionMatch) {
         logger.error(`Invalid submission format in tweet ${tweet.id}`);
         return;
       }
+
+      // The curator handle could be in either capture group depending on the order
+      const curatorHandle = submissionMatch[1] || submissionMatch[2];
 
       // Extract categories from hashtags in submission tweet (excluding command hashtags)
       const categories = (tweet.hashtags || []).filter(
         (tag) => !["submit", "approve", "reject"].includes(tag.toLowerCase()),
       );
 
-      // Extract description: everything after !submit @handle that's not a hashtag
-      const description =
-        tweet.text
-          ?.replace(/!submit\s+@\w+/i, "") // Remove command
-          .replace(/#\w+/g, "") // Remove hashtags
-          .trim() || undefined;
+      // Extract description: everything that's not the command or hashtags
+      const description = tweet.text
+        ?.replace(/!submit\s*@\w+/gi, "") // Remove !submit @handle
+        ?.replace(/@\w+\s*!submit/gi, "") // Remove @handle !submit
+        ?.replace(/#\w+/g, "") // Remove hashtags
+        ?.trim() || undefined;
 
-      // Create submission using the original tweet's content and submission metadata
+      // Create submission using the tweet's content
       const submission: TwitterSubmission = {
-        tweetId: originalTweet.id!, // The tweet being submitted
-        userId: originalTweet.userId!,
-        username: originalTweet.username!,
-        content: originalTweet.text || "",
+        tweetId: tweet.id!, // The tweet being submitted
+        userId: tweet.userId!,
+        username: tweet.username!,
+        content: tweet.text || "",
         categories: categories,
         description: description || undefined,
         status: "pending",
         moderationHistory: [],
         createdAt:
-          originalTweet.timeParsed?.toISOString() || new Date().toISOString(),
+          tweet.timeParsed?.toISOString() || new Date().toISOString(),
         submittedAt: new Date().toISOString()
       };
 
@@ -305,12 +292,12 @@ export class TwitterService {
       // Send acknowledgment and save its ID
       const acknowledgmentTweetId = await this.replyToTweet(
         tweet.id, // Reply to the submission tweet
-        "Successfully submitted to publicgoods.news!",
+        "Successfully submitted!",
       );
 
       if (acknowledgmentTweetId) {
         db.updateSubmissionAcknowledgment(
-          originalTweet.id!,
+          tweet.id!,
           acknowledgmentTweetId,
         );
         logger.info(
@@ -403,7 +390,7 @@ export class TwitterService {
     // TODO: Add NEAR integration here for approved submissions
     const responseTweetId = await this.replyToTweet(
       tweet.id!,
-      "Your submission has been approved and will be added to the public goods news feed!",
+      "Your submission has been approved and will be added to the roadmap!",
     );
     if (responseTweetId) {
       db.updateSubmissionStatus(
@@ -430,7 +417,7 @@ export class TwitterService {
     // TODO: Add NEAR integration here for rejected submissions
     const responseTweetId = await this.replyToTweet(
       tweet.id!,
-      "Your submission has been reviewed and was not accepted for the public goods news feed.",
+      "Your submission has been reviewed and was not accepted for the roadmap at this time.",
     );
     if (responseTweetId) {
       db.updateSubmissionStatus(

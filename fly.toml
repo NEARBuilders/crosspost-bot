@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for public-goods-news-quiet-wildflower-8563 on 2024-12-18T14:47:13-06:00
+# fly.toml app configuration file generated for crosspost-bot on 2025-01-11T15:15:05-05:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'public-goods-news-quiet-wildflower-8563'
+app = 'crosspost-bot'
 primary_region = 'lax'
 
 [build]

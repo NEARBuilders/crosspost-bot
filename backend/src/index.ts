@@ -205,7 +205,7 @@ export async function main() {
 }
 
 // Start the application
-logger.info("Starting Public Goods News Bot...");
+logger.info("Starting Crosspost Bot...");
 main().catch((error) => {
   logger.error("Unhandled Exception", error);
   process.exit(1);

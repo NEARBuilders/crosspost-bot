@@ -13,7 +13,7 @@ function App() {
             <div className="max-w-7xl mx-auto flex justify-between items-center">
               <div className="flex items-center space-x-8">
                 <Link to="/" className="hover:text-gray-600 transition-colors">
-                  <h1 className="text-2xl font-bold">Curation Bot</h1>
+                  <h1 className="text-2xl font-bold">Crosspost Bot</h1>
                 </Link>
               </div>
               <div className="flex items-center gap-4">
@@ -24,12 +24,12 @@ function App() {
                 >
                   Submissions
                 </Link>
-                <Link
+                {/* <Link
                   to="/settings"
                   className="hover:text-gray-600 font-medium transition-colors"
                 >
                   Settings
-                </Link>
+                </Link> */}
               </div>
             </div>
           </nav>

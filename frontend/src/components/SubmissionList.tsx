@@ -6,7 +6,7 @@ import { ExternalLink
   
  } from "lucide-react";
 
-const BOT_ID = "test_curation";
+const BOT_ID = "open_crosspost";
 
 const StatusBadge = ({ status }: { status: TwitterSubmission["status"] }) => {
   const baseClasses = "px-2 py-1 rounded-full text-sm font-semibold border";

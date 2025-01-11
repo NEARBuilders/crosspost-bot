@@ -5,10 +5,10 @@
 
 <div align="center">
 
-<h1 style="font-size: 2.5rem; font-weight: bold;">Public Goods News Curation Bot</h1>
+<h1 style="font-size: 2.5rem; font-weight: bold;">Crosspost bot</h1>
 
   <p>
-    <strong>Bot to curate and to streamline public goods news</strong>
+    <strong>Bot to gather and and streamline feature requests</strong>
   </p>
 
 </div>
