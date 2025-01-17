@@ -50,7 +50,6 @@ export class DatabaseService {
       )
     `);
 
-
     // Handle moderation_history table migration
     try {
       // Backup existing data
@@ -170,7 +169,7 @@ export class DatabaseService {
         submission.status,
         submission.acknowledgmentTweetId || null,
         submission.createdAt,
-        submission.submittedAt
+        submission.submittedAt,
       );
     } catch (e) {
       // If submitted_at column doesn't exist, fall back to insert without it
@@ -190,7 +189,7 @@ export class DatabaseService {
         submission.categories ? JSON.stringify(submission.categories) : null,
         submission.status,
         submission.acknowledgmentTweetId || null,
-        submission.createdAt
+        submission.createdAt,
       );
     }
 
@@ -210,7 +209,7 @@ export class DatabaseService {
       moderation.action,
       moderation.timestamp.toISOString(),
       moderation.note || null,
-      moderation.categories ? JSON.stringify(moderation.categories) : null
+      moderation.categories ? JSON.stringify(moderation.categories) : null,
     );
 
     this.notifyUpdate();

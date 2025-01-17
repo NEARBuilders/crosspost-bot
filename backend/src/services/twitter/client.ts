@@ -11,7 +11,7 @@ import {
   ensureCacheDirectory,
   getCachedCookies,
   getLastCheckedTweetId,
-  saveLastCheckedTweetId
+  saveLastCheckedTweetId,
 } from "../../utils/cache";
 import { logger } from "../../utils/logger";
 import { db } from "../db";
@@ -30,7 +30,7 @@ export class TwitterService {
 
   constructor(
     config: TwitterConfig,
-    private readonly exportManager?: ExportManager
+    private readonly exportManager?: ExportManager,
   ) {
     this.client = new Scraper();
     this.twitterUsername = config.username;
@@ -47,8 +47,10 @@ export class TwitterService {
       // Convert cached cookies to the format expected by the client
       const cookieStrings = cachedCookies.map(
         (cookie) =>
-          `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; ${cookie.secure ? "Secure" : ""
-          }; ${cookie.httpOnly ? "HttpOnly" : ""}; SameSite=${cookie.sameSite || "Lax"
+          `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; ${
+            cookie.secure ? "Secure" : ""
+          }; ${cookie.httpOnly ? "HttpOnly" : ""}; SameSite=${
+            cookie.sameSite || "Lax"
           }`,
       );
       await this.client.setCookies(cookieStrings);
@@ -83,7 +85,7 @@ export class TwitterService {
           sameSite: cookie.sameSite as "Strict" | "Lax" | "None" | undefined,
         }));
 
-        cacheCookies(this.config.username, formattedCookies)
+        cacheCookies(this.config.username, formattedCookies);
         logger.info("Successfully logged in to Twitter");
         return true;
       }
@@ -128,7 +130,10 @@ export class TwitterService {
       for (let attempt = 0; attempt < 3; attempt++) {
         if (await this.performLogin()) {
           this.lastCheckedTweetId = await getLastCheckedTweetId();
-          broadcastUpdate({ type: "lastTweetId", data: this.lastCheckedTweetId });
+          broadcastUpdate({
+            type: "lastTweetId",
+            data: this.lastCheckedTweetId,
+          });
 
           await this.initializeAdminIds();
           return;
@@ -275,7 +280,9 @@ export class TwitterService {
       }
 
       // Extract curator handle and command from submission tweet
-      const submissionMatch = tweet.text?.match(/(?:!submit\s*@(\w+)|@(\w+)\s*!submit)/i);
+      const submissionMatch = tweet.text?.match(
+        /(?:!submit\s*@(\w+)|@(\w+)\s*!submit)/i,
+      );
       if (!submissionMatch) {
         logger.error(`Invalid submission format in tweet ${tweet.id}`);
         return;
@@ -290,11 +297,12 @@ export class TwitterService {
       );
 
       // Extract description: everything that's not the command or hashtags
-      const description = tweet.text
-        ?.replace(/!submit\s*@\w+/gi, "") // Remove !submit @handle
-        ?.replace(/@\w+\s*!submit/gi, "") // Remove @handle !submit
-        ?.replace(/#\w+/g, "") // Remove hashtags
-        ?.trim() || undefined;
+      const description =
+        tweet.text
+          ?.replace(/!submit\s*@\w+/gi, "") // Remove !submit @handle
+          ?.replace(/@\w+\s*!submit/gi, "") // Remove @handle !submit
+          ?.replace(/#\w+/g, "") // Remove hashtags
+          ?.trim() || undefined;
 
       // Create submission using the tweet's content
       const submission: TwitterSubmission = {
@@ -306,9 +314,8 @@ export class TwitterService {
         description: description || undefined,
         status: "pending",
         moderationHistory: [],
-        createdAt:
-          tweet.timeParsed?.toISOString() || new Date().toISOString(),
-        submittedAt: new Date().toISOString()
+        createdAt: tweet.timeParsed?.toISOString() || new Date().toISOString(),
+        submittedAt: new Date().toISOString(),
       };
 
       // Save submission to database
@@ -323,10 +330,7 @@ export class TwitterService {
       );
 
       if (acknowledgmentTweetId) {
-        db.updateSubmissionAcknowledgment(
-          tweet.id!,
-          acknowledgmentTweetId,
-        );
+        db.updateSubmissionAcknowledgment(tweet.id!, acknowledgmentTweetId);
         logger.info(
           `Successfully submitted. Sent reply: ${this.getTweetLink(acknowledgmentTweetId)}`,
         );
@@ -382,9 +386,10 @@ export class TwitterService {
     );
 
     // Extract note: everything in the tweet that's not a hashtag
-    const note = tweet.text
-      ?.replace(/#\w+/g, "") // Remove hashtags
-      .trim() || undefined;
+    const note =
+      tweet.text
+        ?.replace(/#\w+/g, "") // Remove hashtags
+        .trim() || undefined;
 
     const moderation: Moderation = {
       adminId: adminUsername,
@@ -392,7 +397,7 @@ export class TwitterService {
       timestamp: tweet.timeParsed || new Date(),
       tweetId: submission.tweetId, // Use the original submission's tweetId
       categories: categories.length > 0 ? categories : undefined,
-      note: note
+      note: note,
     };
     db.saveModerationAction(moderation);
 
@@ -431,7 +436,10 @@ export class TwitterService {
         try {
           await this.exportManager.handleApprovedSubmission(submission);
         } catch (error) {
-          logger.error("Failed to handle exports for approved submission:", error);
+          logger.error(
+            "Failed to handle exports for approved submission:",
+            error,
+          );
         }
       }
     }
