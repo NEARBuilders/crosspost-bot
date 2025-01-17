@@ -6,17 +6,16 @@ import {
   TwitterConfig,
   TwitterSubmission,
 } from "../../types/twitter";
-import { ExportManager } from "../exports/manager";
 import {
-  TwitterCookie,
   cacheCookies,
   ensureCacheDirectory,
   getCachedCookies,
   getLastCheckedTweetId,
-  saveLastCheckedTweetId,
+  saveLastCheckedTweetId
 } from "../../utils/cache";
 import { logger } from "../../utils/logger";
 import { db } from "../db";
+import { ExportManager } from "../exports/manager";
 
 export class TwitterService {
   private client: Scraper;
@@ -38,16 +37,61 @@ export class TwitterService {
     this.config = config;
   }
 
-  private async setCookiesFromArray(cookiesArray: TwitterCookie[]) {
-    const cookieStrings = cookiesArray.map(
-      (cookie) =>
-        `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; ${
-          cookie.secure ? "Secure" : ""
-        }; ${cookie.httpOnly ? "HttpOnly" : ""}; SameSite=${
-          cookie.sameSite || "Lax"
-        }`,
-    );
-    await this.client.setCookies(cookieStrings);
+  private async loadCachedCookies(): Promise<boolean> {
+    try {
+      const cachedCookies = await getCachedCookies(this.twitterUsername);
+      if (!cachedCookies) {
+        return false;
+      }
+
+      // Convert cached cookies to the format expected by the client
+      const cookieStrings = cachedCookies.map(
+        (cookie) =>
+          `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}; ${cookie.secure ? "Secure" : ""
+          }; ${cookie.httpOnly ? "HttpOnly" : ""}; SameSite=${cookie.sameSite || "Lax"
+          }`,
+      );
+      await this.client.setCookies(cookieStrings);
+
+      // Verify the cookies are still valid
+      return await this.client.isLoggedIn();
+    } catch (error) {
+      logger.error("Error loading cached cookies:", error);
+      return false;
+    }
+  }
+
+  private async performLogin(): Promise<boolean> {
+    logger.info("Performing fresh Twitter login...");
+    try {
+      await this.client.login(
+        this.config.username,
+        this.config.password,
+        this.config.email,
+      );
+
+      if (await this.client.isLoggedIn()) {
+        // Cache the new cookies
+        const cookies = await this.client.getCookies();
+        const formattedCookies = cookies.map((cookie) => ({
+          key: cookie.key,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          httpOnly: cookie.httpOnly,
+          sameSite: cookie.sameSite as "Strict" | "Lax" | "None" | undefined,
+        }));
+
+        cacheCookies(this.config.username, formattedCookies)
+        logger.info("Successfully logged in to Twitter");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      logger.error("Login attempt failed:", error);
+      return false;
+    }
   }
 
   private async initializeAdminIds() {
@@ -71,49 +115,32 @@ export class TwitterService {
       // Ensure cache directory exists
       await ensureCacheDirectory();
 
-      // Check for cached cookies
-      const cachedCookies = await getCachedCookies(this.twitterUsername);
-      if (cachedCookies) {
-        await this.setCookiesFromArray(cachedCookies);
-      }
-
-      // Load last checked tweet ID from cache if no configured ID exists
-      if (!this.configuredTweetId) {
+      if (await this.loadCachedCookies()) {
+        logger.info("Successfully initialized using cached cookies");
         this.lastCheckedTweetId = await getLastCheckedTweetId();
         broadcastUpdate({ type: "lastTweetId", data: this.lastCheckedTweetId });
-      } else {
-        this.lastCheckedTweetId = this.configuredTweetId;
+
+        await this.initializeAdminIds();
+        return;
       }
 
-      // Try to login with retries
-      logger.info("Attempting Twitter login...");
-      while (true) {
-        try {
-          await this.client.login(
-            this.config.username,
-            this.config.password,
-            this.config.email,
-          );
+      // If cached cookies failed or don't exist, try fresh login with retries
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (await this.performLogin()) {
+          this.lastCheckedTweetId = await getLastCheckedTweetId();
+          broadcastUpdate({ type: "lastTweetId", data: this.lastCheckedTweetId });
 
-          if (await this.client.isLoggedIn()) {
-            // Cache the new cookies
-            const cookies = await this.client.getCookies();
-            await cacheCookies(this.config.username, cookies);
-            break;
-          }
-        } catch (error) {
-          logger.error("Failed to login to Twitter, retrying...", error);
+          await this.initializeAdminIds();
+          return;
         }
 
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (attempt < 2) {
+          logger.info(`Retrying login (attempt ${attempt + 1}/3)...`);
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
 
-      // Initialize admin IDs after successful login (convert from handle to account id)
-      await this.initializeAdminIds();
-
-      this.isInitialized = true;
-      logger.info("Successfully logged in to Twitter");
+      throw new Error("Failed to initialize Twitter client after 3 attempts");
     } catch (error) {
       logger.error("Failed to initialize Twitter client:", error);
       throw error;
